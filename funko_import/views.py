@@ -10,8 +10,8 @@ from rest_framework import viewsets
 import mercadopago
 from django.views.decorators.csrf import csrf_exempt
 import json
+from rest_framework.parsers import MultiPartParser, JSONParser
 
-# Create your views here.
 
 #CRUDS
 class UsuarioView(viewsets.ModelViewSet):
@@ -31,6 +31,8 @@ class DescuentoView(viewsets.ModelViewSet):
     queryset = Descuento.objects.all()
 
 class ProductoView(viewsets.ModelViewSet): 
+    parser_classes = [MultiPartParser, JSONParser]
+    serializer_class = ProductoSerializer
     queryset = Producto.objects.all()
 
 class PromocionView(viewsets.ModelViewSet):
@@ -161,6 +163,7 @@ def process_payment(request):
             return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"error": "Invalid request method"}, status=400)
 
+
 #Login Google
 
 from django.http import JsonResponse
@@ -177,53 +180,132 @@ from google.auth.transport import requests as google_requests
 from .models import Usuario
 
 GOOGLE_CLIENT_ID = "ClientID"
-@csrf_exempt  # Permite peticiones desde el frontend sin CSRF token (ajustar según configuración)
+
+#maneja la autenticación de usuarios en tu aplicación utilizando Google OAuth 2.0
+@csrf_exempt
 def google_login(request):
     if request.method != "POST":
         return JsonResponse({"error": "Método no permitido"}, status=405)
 
     try:
-        data = json.loads(request.body)  # Obtener los datos enviados desde el frontend
-        token = data.get("token")  # Extraer el token de Google
+        data = json.loads(request.body)
+        token = data.get("token")
 
         if not token:
             return JsonResponse({"error": "Token no proporcionado"}, status=400)
 
-        # Validar el token con Google
         idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
 
         if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
             return JsonResponse({"error": "Emisor no válido"}, status=403)
 
-        # Extraer información del usuario
         email = idinfo["email"]
-        nombre = idinfo.get("name", "")
-        picture = idinfo.get("picture", "")
+        nombre = idinfo.get("given_name", "")
+        apellido = idinfo.get("family_name", "")
 
-        # Verificar si el usuario ya existe
         usuario, created = Usuario.objects.get_or_create(
             correo=email,
-            defaults={"nombre": nombre, "rol": False}  # Por defecto, no es admin
+            defaults={
+                "nombre": nombre,
+                "apellido": apellido,
+                "direccion": "",
+                "telefono": "",
+                "rol": False
+            }
         )
 
-        # Si el usuario tiene el correo de admin, actualizar su rol
-        if email == "funkoimportcdelu@gmail.com" and not usuario.rol:
+        es_admin = email == "funkoimportcdelu@gmail.com"
+        if es_admin and not usuario.rol:
             usuario.rol = True
             usuario.save()
 
-        # Responder con la información del usuario
         user_data = {
             "email": usuario.correo,
-            "name": usuario.nombre,
-            "picture": picture,
-            "rol": usuario.rol,  # Se usa el campo `rol` del modelo Usuario
+            "nombre": usuario.nombre,
+            "apellido": usuario.apellido,
+            "rol": usuario.rol,
+            "first_time": created,  # Indica si es un nuevo usuario
         }
 
         return JsonResponse({"message": "Autenticación exitosa", "user": user_data})
 
     except ValueError:
         return JsonResponse({"error": "Token inválido"}, status=403)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Formato JSON inválido"}, status=400)
+
+#@csrf_exempt  # Para permitir peticiones sin CSRF Token (solo en desarrollo)
+#permite que los usuarios completen su información personal en la base de datos después de registrarse con Google
+@csrf_exempt
+def completar_perfil(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        email = data.get("correo")
+        nombre = data.get("nombre")
+        apellido = data.get("apellido")
+        direccion = data.get("direccion")
+        telefono = data.get("telefono")
+
+        if not all([email, nombre, apellido, direccion, telefono]):
+            return JsonResponse({"error": "Faltan datos obligatorios"}, status=400)
+
+        usuario = Usuario.objects.filter(correo=email).first()
+
+        if not usuario:
+            return JsonResponse({"error": "Usuario no encontrado"}, status=404)
+
+        usuario.nombre = nombre
+        usuario.apellido = apellido
+        usuario.direccion = direccion
+        usuario.telefono = telefono
+        usuario.save()
+
+        return JsonResponse({"message": "Perfil actualizado correctamente", "user": {
+            "email": usuario.correo,
+            "nombre": usuario.nombre,
+            "apellido": usuario.apellido,
+            "direccion": usuario.direccion,
+            "telefono": usuario.telefono
+        }})
 
     except json.JSONDecodeError:
         return JsonResponse({"error": "Formato JSON inválido"}, status=400)
 
+
+#permite que los usuarios actualicen su perfil en la base de datos
+    
+# def update_user(request):
+#     if request.method != "POST":
+#         return JsonResponse({"error": "Método no permitido"}, status=405)
+
+#     try:
+#         data = json.loads(request.body)
+#         email = data.get("email")
+#         nombre_completo = data.get("nombreCompleto")
+#         dni = data.get("dni")
+#         direccion = data.get("direccion")
+
+#         if not all([email, nombre_completo, dni, direccion]):
+#             return JsonResponse({"error": "Faltan datos obligatorios"}, status=400)
+
+#         usuario = Usuario.objects.filter(correo=email).first()
+#         if not usuario:
+#             return JsonResponse({"error": "Usuario no encontrado"}, status=404)
+
+#         usuario.nombre = nombre_completo  # Asegúrate de que tu modelo tiene este campo
+#         usuario.dni = dni
+#         usuario.direccion = direccion
+#         usuario.save()
+
+#         return JsonResponse({"message": "Perfil actualizado correctamente", "user": {
+#             "email": usuario.correo,
+#             "nombre": usuario.nombre,
+#             "dni": usuario.dni,
+#             "direccion": usuario.direccion
+#         }})
+
+#     except json.JSONDecodeError:
+#         return JsonResponse({"error": "Formato JSON inválido"}, status=400)

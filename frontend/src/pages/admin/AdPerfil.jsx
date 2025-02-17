@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../../Admin.css';
 
-const Perfil = () => {
+const AdPerfil = () => {
   const [isPersonalInfoEditing, setIsPersonalInfoEditing] = useState(false);
   const [isShippingInfoEditing, setIsShippingInfoEditing] = useState(false);
 
@@ -56,4 +56,4 @@ const Perfil = () => {
   );
 };
 
-export default Perfil;
+export default AdPerfil;

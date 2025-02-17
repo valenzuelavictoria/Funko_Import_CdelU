@@ -1,11 +1,10 @@
+# funko_import/urls.py
 from django.urls import path, include
 from rest_framework import routers
 from . import views
 from .views import process_payment
-from .views import google_login 
 
 router = routers.DefaultRouter()
-# router.register(r'Coleccion', views.ColeccionView, 'Coleccion')
 
 router.register(r'Usuario', views.UsuarioView, 'Usuario')
 router.register(r'Coleccion', views.ColeccionView, 'Coleccion')
@@ -17,8 +16,8 @@ router.register(r'resenaComentario', views.resenaComentarioView, 'resenaComentar
 router.register(r'pregunta', views.preguntaView, 'Pregunta')
 
 urlpatterns = [
-    path('api/', include(router.urls)),
+    path('', include(router.urls)),  # Rutas del router bajo el prefijo 'api/auth/'
+    path('auth/google-login/', views.google_login, name='google_login'),  # Ahora está bajo 'api/auth/google-login/'
     path("process_payment/", process_payment, name="process_payment"),
-    # path("google_login/", google_login, name="google_login"),
-    path('google', views.google_login, name='google-login'),
+    path('auth/completar-perfil/', views.completar_perfil, name='completar_perfil'),
 ]

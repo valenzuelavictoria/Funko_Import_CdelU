@@ -15,7 +15,7 @@ class Usuario(models.Model):
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
     direccion = models.CharField(max_length=255)
-    correo = models.EmailField()
+    correo = models.EmailField(unique=True)
     telefono = models.CharField(max_length=15)
     rol = models.BooleanField(default=False)
     
